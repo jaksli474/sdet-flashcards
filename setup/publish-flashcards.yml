@@ -1,0 +1,49 @@
+# Copy this file to sdet-learning-lab/.github/workflows/publish-flashcards.yml
+# It publishes course/flashcards.md (and nothing else) to the public sdet-flashcards repo.
+# Needs the secret FLASHCARDS_DEPLOY_TOKEN: a fine-grained PAT with access to
+# sdet-flashcards only, permission "Contents: Read and write".
+name: Publish flashcards
+
+on:
+  push:
+    branches: [main]
+    paths: [course/flashcards.md]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-flashcards
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out course repo
+        uses: actions/checkout@v5
+        with:
+          path: course-repo
+          persist-credentials: false
+
+      - name: Check out flashcards site
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ github.repository_owner }}/sdet-flashcards
+          token: ${{ secrets.FLASHCARDS_DEPLOY_TOKEN }}
+          path: site
+
+      - name: Commit flashcards.md if it changed
+        working-directory: site
+        run: |
+          cp ../course-repo/course/flashcards.md flashcards.md
+          git add flashcards.md
+          if git diff --cached --quiet; then
+            echo "flashcards.md is unchanged, nothing to publish."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: sync flashcards.md from course repo"
+          git push
